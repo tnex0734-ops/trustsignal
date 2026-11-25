@@ -9,6 +9,30 @@ const VIEWPORTS = [
   { name: "desktop-1440", width: 1440, height: 900 },
 ] as const;
 
+async function assertNonceScriptCsp(
+  response: Awaited<ReturnType<import("@playwright/test").Page["goto"]>>,
+) {
+  expect(response).not.toBeNull();
+  expect(response?.status()).toBe(200);
+  const headers = response?.headers() ?? {};
+  expect(headers["x-content-type-options"]).toBe("nosniff");
+  expect(headers["x-frame-options"]).toBe("DENY");
+  expect(headers["referrer-policy"]).toBe("no-referrer");
+  expect(headers["x-dns-prefetch-control"]).toBe("off");
+
+  const csp = headers["content-security-policy"] ?? "";
+  expect(csp).toContain("frame-ancestors 'none'");
+  expect(csp).toContain("connect-src 'self'");
+  expect(csp).not.toMatch(/script-src[^;]*'unsafe-inline'/);
+
+  const nonceMatch = csp.match(/'nonce-([^']+)'/);
+  expect(nonceMatch).not.toBeNull();
+  const body = (await response?.text()) ?? "";
+  const scriptNonces = [...body.matchAll(/<script\b[^>]*\bnonce="([^"]+)"/gi)].map((m) => m[1]);
+  expect(scriptNonces.length).toBeGreaterThan(0);
+  expect(scriptNonces.every((n) => n === nonceMatch?.[1])).toBe(true);
+}
+
 test.describe("TrustSignal end-to-end journeys, privacy, security, and accessibility", () => {
   test("homepage loads cleanly with required security headers and zero console errors", async ({
     page,
@@ -25,16 +49,7 @@ test.describe("TrustSignal end-to-end journeys, privacy, security, and accessibi
     });
 
     const response = await page.goto("/");
-    expect(response).not.toBeNull();
-    expect(response?.status()).toBe(200);
-
-    const headers = response?.headers() ?? {};
-    expect(headers["x-content-type-options"]).toBe("nosniff");
-    expect(headers["x-frame-options"]).toBe("DENY");
-    expect(headers["referrer-policy"]).toBe("no-referrer");
-    expect(headers["x-dns-prefetch-control"]).toBe("off");
-    expect(headers["content-security-policy"]).toContain("frame-ancestors 'none'");
-    expect(headers["content-security-policy"]).toContain("connect-src 'self'");
+    await assertNonceScriptCsp(response);
 
     await expect(
       page.getByRole("heading", {
@@ -43,8 +58,7 @@ test.describe("TrustSignal end-to-end journeys, privacy, security, and accessibi
     ).toBeVisible();
 
     const learnRes = await page.goto("/learn");
-    expect(learnRes?.status()).toBe(200);
-    expect(learnRes?.headers()["x-dns-prefetch-control"]).toBe("off");
+    await assertNonceScriptCsp(learnRes);
     await expect(
       page.getByRole("heading", { name: /digital safety guides & rule transparency/i }),
     ).toBeVisible();

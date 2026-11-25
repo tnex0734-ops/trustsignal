@@ -109,7 +109,3 @@ export const LINK_FIXTURES: readonly LinkFixture[] = [
     description: "Blocked active script scheme; never opened or executed.",
   },
 ];
-
-export const UI_LINK_DEMO_PRESETS = LINK_FIXTURES.filter((item) =>
-  ["benign-https", "suspicious-shortener", "suspicious-userinfo"].includes(item.id),
-);

@@ -40,6 +40,36 @@ describe("analyzeMessage", () => {
     }
   });
 
+  it("still flags an OTP solicitation even if preceded by a fake anti-scam preamble", () => {
+    const result = analyzeMessage(
+      "We never ask for your PIN. Now reply with your 6-digit OTP to unlock your account.",
+    );
+    expect(result.status).toBe("analyzed");
+    if (result.status === "analyzed") {
+      expect(result.riskLevel).toBe("high-risk");
+      expect(result.indicators.some((i) => i.id === "MSG_OTP_CREDENTIAL_REQUEST")).toBe(true);
+    }
+  });
+
+  it("treats benign embedded HTTPS links as informational without escalating to warning", () => {
+    const result = analyzeMessage(
+      "See the updated library schedule at https://www.example.com/schedule before Friday.",
+    );
+    expect(result.status).toBe("analyzed");
+    if (result.status === "analyzed") {
+      expect(result.riskLevel).toBe("low-signal");
+      expect(result.indicators.some((i) => i.id === "MSG_EMBEDDED_LINK_INFO")).toBe(true);
+    }
+  });
+
+  it("handles malformed embedded links inside messages without crashing", () => {
+    const result = analyzeMessage("Broken reference link http://[invalid-host in notes.");
+    expect(result.status).toBe("analyzed");
+    if (result.status === "analyzed") {
+      expect(result.embeddedLinkResults?.[0]?.riskLevel).toBe("invalid");
+    }
+  });
+
   it("detects embedded unsafe schemes and risky links locally without network calls", () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     const result = analyzeMessage("Click javascript:alert(1) or visit https://bit.ly/demo-link");
@@ -81,10 +111,14 @@ describe("analyzeMessage", () => {
     expect(elapsedMs).toBeLessThan(200);
   });
 
-  it("caps extracted candidate URLs per message", () => {
+  it("caps extracted candidate URLs per message across explicit and bare shorteners", () => {
     const manyLinks = Array.from({ length: 15 }, (_, idx) => `https://example${idx}.com/test`).join(
       " ",
     );
     expect(extractCandidateUrls(manyLinks).length).toBeLessThanOrEqual(10);
+
+    const manyShorteners = Array.from({ length: 14 }, (_, idx) => `bit.ly/sample${idx}`).join(" ");
+    expect(extractCandidateUrls(manyShorteners)).toHaveLength(10);
+    expect(analyzeMessage(null as unknown as string).status).toBe("invalid");
   });
 });

@@ -49,7 +49,3 @@ export const PASSWORD_FIXTURES: readonly PasswordTestFixture[] = [
     description: "Unicode / emoji multi-word passphrase.",
   },
 ];
-
-export const UI_PASSWORD_DEMO_PRESETS = PASSWORD_FIXTURES.filter((item) =>
-  ["keyboard-walk", "strong-passphrase"].includes(item.id),
-);

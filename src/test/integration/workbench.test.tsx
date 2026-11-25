@@ -31,6 +31,17 @@ describe("TrustSignalWorkbench integration", () => {
     await user.click(screen.getByRole("button", { name: /analyze link/i }));
     expect(screen.getByText(/blocked non-web scheme/i)).toBeInTheDocument();
 
+    // Synthetic unsafe scheme preset button + assumed-scheme port breakdown
+    await user.click(screen.getByRole("button", { name: /unsafe scheme example: javascript:/i }));
+    expect(screen.getByText(/blocked non-web scheme/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /clear/i }));
+    await user.click(linkInput);
+    await user.paste("verify-portal.example.org:8443/home");
+    await user.click(screen.getByRole("button", { name: /analyze link/i }));
+    expect(screen.getByText(/https: \(assumed\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/verify-portal\.example\.org:8443/i)).toBeInTheDocument();
+
     // Oversized URL rejection
     await user.clear(linkInput);
     await user.click(linkInput);
@@ -111,6 +122,20 @@ describe("TrustSignalWorkbench integration", () => {
     // Clear removes password and result
     await user.click(screen.getByRole("button", { name: /clear/i }));
     expect(pwdInput).toHaveValue("");
+    expect(screen.queryByRole("region", { name: /password strength assessment/i })).toBeNull();
+
+    // Submitting empty form yields calm empty guidance; demo preset + backspace-to-empty clears
+    await user.click(screen.getByRole("button", { name: /check password/i }));
+    expect(screen.getByText(/type or paste a sample password/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /test sample: keyboard sequence/i }));
+    expect(
+      within(screen.getByRole("region", { name: /password strength assessment/i })).getByText(
+        "High risk",
+      ),
+    ).toBeInTheDocument();
+
+    await user.clear(pwdInput);
     expect(screen.queryByRole("region", { name: /password strength assessment/i })).toBeNull();
 
     // Entering password then switching tabs wipes password state on return

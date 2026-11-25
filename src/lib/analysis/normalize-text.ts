@@ -26,6 +26,8 @@ const CONFUSABLE_CHAR_MAP: ReadonlyMap<string, string> = new Map([
   ["\u0445", "x"], // х
   ["\u0455", "s"], // ѕ
   ["\u0458", "j"], // ј
+  ["\u04CF", "l"], // ӏ Cyrillic small palochka
+  ["\u04C0", "l"], // Ӏ Cyrillic palochka
   // Greek lookalikes
   ["\u03B1", "a"], // α
   ["\u03BF", "o"], // ο

@@ -42,8 +42,16 @@ describe("normalize-text", () => {
 
   it("decodes valid Punycode hostnames and preserves malformed labels safely", () => {
     expect(decodePunycodeHostname("xn--pypal-4ve.example.com")).toBe("p\u0430ypal.example.com");
+    expect(decodePunycodeHostname("xn--bcher-kva.example")).toBe("b\u00fccher.example");
+    expect(decodePunycodeHostname("xn--80ak6aa92e.example")).toBe(
+      "\u0430\u0440\u0440\u04CF\u0435.example",
+    );
     expect(decodePunycodeHostname("xn--invalid!label.example.com")).toBe(
       "xn--invalid!label.example.com",
     );
+    expect(decodePunycodeHostname(`xn--${"a".repeat(260)}.example`)).toBe(
+      `xn--${"a".repeat(260)}.example`,
+    );
+    expect(decodePunycodeHostname("xn--p\u0430-4ve.example")).toBe("xn--p\u0430-4ve.example");
   });
 });

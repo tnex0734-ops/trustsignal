@@ -54,6 +54,34 @@ describe("analyzeLink", () => {
       expect(unicodeHomograph.indicators.some((i) => i.id === "LINK_PUNYCODE_IDN")).toBe(true);
       expect(unicodeHomograph.indicators.some((i) => i.id === "LINK_BRAND_LOOKALIKE")).toBe(true);
     }
+
+    const longHost = analyzeLink(`https://${"sub-label-".repeat(6)}verify-portal.xyz/home`);
+    expect(longHost.status).toBe("analyzed");
+    if (longHost.status === "analyzed") {
+      expect(longHost.indicators.some((i) => i.id === "LINK_SUSPICIOUS_HOST_PATTERN")).toBe(true);
+    }
+
+    const hyphenLure = analyzeLink("https://my-urgent-verify-portal.example.com/home");
+    expect(hyphenLure.status).toBe("analyzed");
+    if (hyphenLure.status === "analyzed") {
+      expect(hyphenLure.indicators.some((i) => i.id === "LINK_SUSPICIOUS_HOST_PATTERN")).toBe(true);
+    }
+
+    const passOnlyUserInfo = analyzeLink("https://user:secret@example.org/account");
+    expect(passOnlyUserInfo.status).toBe("analyzed");
+    if (passOnlyUserInfo.status === "analyzed") {
+      expect(passOnlyUserInfo.indicators.some((i) => i.id === "LINK_USERINFO_CREDENTIALS")).toBe(
+        true,
+      );
+    }
+
+    const palochkaHomograph = analyzeLink("https://xn--80ak6aa92e.example/login");
+    expect(palochkaHomograph.status).toBe("analyzed");
+    if (palochkaHomograph.status === "analyzed") {
+      expect(palochkaHomograph.riskLevel).toBe("high-risk");
+      expect(palochkaHomograph.indicators.some((i) => i.id === "LINK_PUNYCODE_IDN")).toBe(true);
+      expect(palochkaHomograph.indicators.some((i) => i.id === "LINK_BRAND_LOOKALIKE")).toBe(true);
+    }
   });
 
   it("always includes explicit uncertainty limitations even for low-signal HTTPS URLs", () => {

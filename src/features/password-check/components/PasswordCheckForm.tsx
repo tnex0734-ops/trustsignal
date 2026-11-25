@@ -5,8 +5,8 @@ import { CheckCircle2, Eye, EyeOff, KeyRound, Lock, RotateCcw } from "lucide-rea
 import { RiskSeverityBadge } from "@/components/ui/SeverityBadge";
 import { assessPasswordLocally } from "@/features/password-check/service";
 import { MAX_PASSWORD_LENGTH } from "@/lib/analysis/constants";
+import { DEMO_PASSWORD_PRESETS } from "@/lib/analysis/demo-presets";
 import type { PasswordAssessment, PasswordStrengthTier } from "@/lib/analysis/types";
-import { UI_PASSWORD_DEMO_PRESETS } from "@/test/fixtures/password-fixtures";
 
 const TIER_LABEL_MAP: Record<PasswordStrengthTier, string> = {
   "very-weak": "Very weak",
@@ -139,7 +139,7 @@ export function PasswordCheckForm() {
           Synthetic test samples (never reuse sample passwords on real accounts)
         </p>
         <div className="mt-2 flex flex-wrap gap-2">
-          {UI_PASSWORD_DEMO_PRESETS.map((preset) => (
+          {DEMO_PASSWORD_PRESETS.map((preset) => (
             <button
               key={preset.id}
               type="button"

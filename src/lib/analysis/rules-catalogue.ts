@@ -1,4 +1,5 @@
-import type { RuleDefinition } from "./types";
+import { truncateEvidence } from "./normalize-text";
+import type { Indicator, RuleDefinition } from "./types";
 
 export const RULE_CATALOGUE: readonly RuleDefinition[] = [
   {
@@ -333,4 +334,21 @@ export function getRuleDefinition(id: string): RuleDefinition {
     throw new Error(`Unknown TrustSignal rule id: ${id}`);
   }
   return found;
+}
+
+export function createIndicatorFromRule(
+  ruleId: string,
+  evidence?: string,
+  customExplanation?: string,
+): Indicator {
+  const def = getRuleDefinition(ruleId);
+  return {
+    id: def.id,
+    title: def.title,
+    severity: def.severity,
+    weight: def.weight,
+    explanation: customExplanation ?? def.whyItMatters,
+    recommendation: def.recommendation,
+    ...(evidence ? { evidence: truncateEvidence(evidence) } : {}),
+  };
 }
