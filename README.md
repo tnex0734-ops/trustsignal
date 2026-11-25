@@ -169,6 +169,31 @@ See [THREAT_MODEL.md](./THREAT_MODEL.md), [SECURITY_REQUIREMENTS.md](./SECURITY_
 
 ---
 
+## Vercel Deployment
+
+TrustSignal deploys directly on Vercel with standard Next.js App Router detection and **no custom `vercel.json` or environment variables**:
+
+- **Repository Root:** `.` (`package.json`, `next.config.ts`, and `src/` sit at the repository root)
+- **Framework Preset:** `Next.js`
+- **Install / Build Commands:** `npm ci` / `npm run build` (lockfile `package-lock.json` committed)
+- **Environment Variables:** None required for MVP (`.env.example` contains documentation comments only)
+- **Production Security Headers:** Applied via [next.config.ts](./next.config.ts) and [src/proxy.ts](./src/proxy.ts)
+
+### Option A — Vercel Dashboard (GitHub Import)
+1. Push `main` to `https://github.com/tnex0734-ops/trustsignal`.
+2. In Vercel, choose **Add New -> Project** and import `tnex0734-ops/trustsignal`.
+3. Keep the detected **Next.js** settings and deploy a **Preview** build first.
+4. Smoke-test `/`, `/learn`, `/api/health`, `/api/rules`, `/api/guides`, `/api/guidance`, and response headers before promoting to **Production**.
+
+### Option B — Vercel CLI
+```bash
+npx vercel login
+npx vercel            # Preview deployment
+npx vercel --prod     # Production deployment after smoke tests pass
+```
+
+---
+
 ## Demo Walkthrough (Synthetic Data Only)
 
 1. **Check a link:** Click *"High-risk example: embedded credentials before @"* (`https://paypal.com@login-check.example.com/verify-account`) -> shows `High risk`, user-info & brand lookalike indicators, and confirms the URL was never opened. Compare with *"Benign example: standard HTTPS page"* -> `Low signal` plus explicit non-proof limitations.
