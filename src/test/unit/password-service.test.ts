@@ -41,6 +41,18 @@ describe("assessPasswordLocally", () => {
     const unicode = assessPasswordLocally("Canyon☕River⛰️Lantern92!");
     expect(unicode.detectedPatterns).toContain("Includes Unicode / multi-script characters");
     expect(unicode.riskLevel).toBe("low-signal");
+
+    const fair = assessPasswordLocally("OrangeSky7");
+    expect(fair.score).toBe(2);
+    expect(fair.tier).toBe("fair");
+    expect(fair.riskLevel).toBe("needs-attention");
+
+    const strong = assessPasswordLocally("Harbor74Cloud");
+    expect(strong.score).toBe(3);
+    expect(strong.tier).toBe("strong");
+
+    const withDate = assessPasswordLocally("Blue1998-05-12");
+    expect(withDate.detectedPatterns).toContain("Date or year pattern");
   });
 
   it("handles empty and oversized inputs safely", () => {

@@ -73,9 +73,9 @@ export function RiskResultPanel({ result }: { result: ValidAnalysisResult }) {
             Embedded links inspected locally ({result.embeddedLinkResults.length})
           </h4>
           <ul className="mt-3 space-y-2">
-            {result.embeddedLinkResults.map((link) => (
+            {result.embeddedLinkResults.map((link, index) => (
               <li
-                key={link.displayUrl}
+                key={`${link.displayUrl}-${index}`}
                 className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs sm:text-sm"
               >
                 <code className="break-all font-mono text-slate-900">{link.displayUrl}</code>

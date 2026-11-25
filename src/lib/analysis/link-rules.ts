@@ -1,11 +1,7 @@
 import { BRAND_PATTERNS, HIGH_ABUSE_TLDS, KNOWN_URL_SHORTENERS } from "./constants";
-import {
-  decodePunycodeHostname,
-  normalizeConfusableAscii,
-  truncateEvidence,
-} from "./normalize-text";
+import { decodePunycodeHostname, normalizeConfusableAscii } from "./normalize-text";
 import { aggregateAnalysisRisk } from "./risk";
-import { getRuleDefinition } from "./rules-catalogue";
+import { createIndicatorFromRule } from "./rules-catalogue";
 import { parseCandidateUrl, type ParsedCandidateUrl } from "./url-parser";
 import type { AnalysisResponse, Indicator } from "./types";
 
@@ -60,17 +56,38 @@ const SUSPICIOUS_HOST_LURE_TOKENS = [
   "alert",
 ];
 
-function makeIndicator(ruleId: string, evidence?: string, customExplanation?: string): Indicator {
-  const def = getRuleDefinition(ruleId);
-  return {
-    id: def.id,
-    title: def.title,
-    severity: def.severity,
-    weight: def.weight,
-    explanation: customExplanation ?? def.whyItMatters,
-    recommendation: def.recommendation,
-    ...(evidence ? { evidence: truncateEvidence(evidence) } : {}),
-  };
+interface AuthorityTokens {
+  rawLower: string;
+  segments: string[];
+  joined: string;
+}
+
+function tokenizeAuthority(rawValue: string, decodePunycode: boolean): AuthorityTokens {
+  const rawLower = rawValue.toLowerCase();
+  if (!rawLower) {
+    return { rawLower: "", segments: [], joined: "" };
+  }
+  const decoded = decodePunycode ? decodePunycodeHostname(rawLower) : rawLower;
+  const normalized = normalizeConfusableAscii(decoded);
+  const segments = normalized.split(/[.-]/).filter((part) => part.length > 0);
+  return { rawLower, segments, joined: segments.join("") };
+}
+
+function authorityMatchesBrandToken(
+  authority: AuthorityTokens,
+  rawToken: string,
+  normalizedToken: string,
+): boolean {
+  if (!authority.rawLower) {
+    return false;
+  }
+  if (authority.segments.some((seg) => seg === normalizedToken)) {
+    return true;
+  }
+  return (
+    normalizedToken.length >= 5 &&
+    (authority.joined.includes(normalizedToken) || authority.rawLower.includes(rawToken))
+  );
 }
 
 function isOfficialDomainForBrand(hostname: string, officialRoots: readonly string[]): boolean {
@@ -81,7 +98,7 @@ export function ruleUserInfoInAuthority(parsed: ParsedCandidateUrl): Indicator |
   if (!parsed.url.username && !parsed.url.password) {
     return null;
   }
-  return makeIndicator(
+  return createIndicatorFromRule(
     "LINK_USERINFO_CREDENTIALS",
     `Authority specifies user credentials before @${parsed.hostname}`,
   );
@@ -92,7 +109,7 @@ export function ruleIpAddressHost(parsed: ParsedCandidateUrl): Indicator | null 
     return null;
   }
   const detail = parsed.ipDetail ?? "Numeric IP host";
-  return makeIndicator("LINK_IP_ADDRESS_HOST", `${detail}: ${parsed.hostname}`);
+  return createIndicatorFromRule("LINK_IP_ADDRESS_HOST", `${detail}: ${parsed.hostname}`);
 }
 
 export function rulePunycodeOrIdn(parsed: ParsedCandidateUrl): Indicator | null {
@@ -103,13 +120,13 @@ export function rulePunycodeOrIdn(parsed: ParsedCandidateUrl): Indicator | null 
   const detail = parsed.rawHadNonAsciiHost
     ? `Non-ASCII host normalized to ${parsed.hostname} (decoded: ${decodedHost})`
     : `Punycode domain: ${parsed.hostname} (decoded: ${decodedHost})`;
-  return makeIndicator("LINK_PUNYCODE_IDN", detail);
+  return createIndicatorFromRule("LINK_PUNYCODE_IDN", detail);
 }
 
 export function ruleKnownUrlShortener(parsed: ParsedCandidateUrl): Indicator | null {
   for (const shortener of KNOWN_URL_SHORTENERS) {
     if (parsed.hostname === shortener || parsed.hostname.endsWith(`.${shortener}`)) {
-      return makeIndicator("LINK_URL_SHORTENER", `Shortener domain: ${shortener}`);
+      return createIndicatorFromRule("LINK_URL_SHORTENER", `Shortener domain: ${shortener}`);
     }
   }
   return null;
@@ -119,14 +136,14 @@ export function ruleInsecureHttpScheme(parsed: ParsedCandidateUrl): Indicator | 
   if (parsed.scheme !== "http:") {
     return null;
   }
-  return makeIndicator("LINK_INSECURE_HTTP", "Uses unencrypted http:// scheme");
+  return createIndicatorFromRule("LINK_INSECURE_HTTP", "Uses unencrypted http:// scheme");
 }
 
 export function ruleAssumedScheme(parsed: ParsedCandidateUrl): Indicator | null {
   if (!parsed.assumedScheme) {
     return null;
   }
-  return makeIndicator(
+  return createIndicatorFromRule(
     "LINK_ASSUMED_SCHEME",
     "No http:// or https:// prefix was included in the input",
   );
@@ -136,7 +153,7 @@ export function ruleObfuscatedCharacters(parsed: ParsedCandidateUrl): Indicator 
   if (parsed.bidiCount === 0 && parsed.obfuscationCount === 0) {
     return null;
   }
-  return makeIndicator(
+  return createIndicatorFromRule(
     "LINK_OBFUSCATED_CHARACTERS",
     `Hidden control characters detected (bidi: ${parsed.bidiCount}, zero-width: ${parsed.obfuscationCount})`,
   );
@@ -151,7 +168,7 @@ export function ruleExcessiveSubdomains(parsed: ParsedCandidateUrl): Indicator |
   if (effectiveLabels.length < 4) {
     return null;
   }
-  return makeIndicator(
+  return createIndicatorFromRule(
     "LINK_EXCESSIVE_SUBDOMAINS",
     `${effectiveLabels.length} domain labels: ${parsed.hostname}`,
   );
@@ -162,43 +179,24 @@ export function ruleBrandLookalike(parsed: ParsedCandidateUrl): Indicator | null
     return null;
   }
 
-  const rawHostLower = parsed.hostname.toLowerCase();
-  const decodedHost = decodePunycodeHostname(rawHostLower);
-  const normalizedHost = normalizeConfusableAscii(decodedHost);
-  const hostTokens = normalizedHost.split(/[.-]/).filter((part) => part.length > 0);
-  const joinedHost = hostTokens.join("");
-
-  const rawUserInfo = parsed.url.username ? parsed.url.username.toLowerCase() : "";
-  const normalizedUserInfo = rawUserInfo ? normalizeConfusableAscii(rawUserInfo) : "";
-  const userInfoTokens = normalizedUserInfo
-    ? normalizedUserInfo.split(/[.-]/).filter((part) => part.length > 0)
-    : [];
-  const joinedUserInfo = userInfoTokens.join("");
+  const hostAuthority = tokenizeAuthority(parsed.hostname, true);
+  const userInfoAuthority = tokenizeAuthority(parsed.url.username, false);
 
   for (const entry of BRAND_PATTERNS) {
-    if (isOfficialDomainForBrand(rawHostLower, entry.officialRoots)) {
+    if (isOfficialDomainForBrand(hostAuthority.rawLower, entry.officialRoots)) {
       continue;
     }
 
     for (const token of entry.lookalikeTokens) {
       const normalizedToken = normalizeConfusableAscii(token);
-      // Match whole token segments or unmistakable lookalike compounds (e.g. paypal-verify, paypa1, g00gle)
-      const matchedHostSegment = hostTokens.some((seg) => seg === normalizedToken);
-      const matchedHostCompound =
-        normalizedToken.length >= 5 &&
-        (joinedHost.includes(normalizedToken) || rawHostLower.includes(token));
+      const matchedUserInfo = authorityMatchesBrandToken(userInfoAuthority, token, normalizedToken);
+      const matchedHost = authorityMatchesBrandToken(hostAuthority, token, normalizedToken);
 
-      const matchedUserInfo =
-        Boolean(rawUserInfo) &&
-        (userInfoTokens.some((seg) => seg === normalizedToken) ||
-          (normalizedToken.length >= 5 &&
-            (joinedUserInfo.includes(normalizedToken) || rawUserInfo.includes(token))));
-
-      if (matchedHostSegment || matchedHostCompound || matchedUserInfo) {
+      if (matchedHost || matchedUserInfo) {
         const evidenceText = matchedUserInfo
-          ? `Userinfo "${rawUserInfo}" mimics "${entry.brand}" while redirecting to "${parsed.hostname}"`
+          ? `Userinfo "${userInfoAuthority.rawLower}" mimics "${entry.brand}" while redirecting to "${parsed.hostname}"`
           : `Host "${parsed.hostname}" resembles "${entry.brand}" without matching official domains (${entry.officialRoots.join(", ")})`;
-        return makeIndicator("LINK_BRAND_LOOKALIKE", evidenceText);
+        return createIndicatorFromRule("LINK_BRAND_LOOKALIKE", evidenceText);
       }
     }
   }
@@ -232,11 +230,9 @@ export function ruleSuspiciousHostPatterns(parsed: ParsedCandidateUrl): Indicato
     reasons.push(`multiple hyphens in domain label (${maxHyphens})`);
   }
 
-  // Only examine host labels excluding the TLD for lure combinations
   const nonTldText = labels.slice(0, -1).join(".");
   const matchedLures = SUSPICIOUS_HOST_LURE_TOKENS.filter((token) => nonTldText.includes(token));
 
-  // Avoid flagging a single benign word like "support.example.com" unless combined with another lure/hyphen/high-abuse TLD
   if (matchedLures.length >= 2) {
     reasons.push(`multiple security-lure terms in host (${matchedLures.slice(0, 3).join(", ")})`);
   } else if (matchedLures.length === 1 && (HIGH_ABUSE_TLDS.has(tld) || maxHyphens >= 2)) {
@@ -249,7 +245,7 @@ export function ruleSuspiciousHostPatterns(parsed: ParsedCandidateUrl): Indicato
     return null;
   }
 
-  return makeIndicator("LINK_SUSPICIOUS_HOST_PATTERN", reasons.join("; "));
+  return createIndicatorFromRule("LINK_SUSPICIOUS_HOST_PATTERN", reasons.join("; "));
 }
 
 export function ruleDeceptivePathOrQuery(parsed: ParsedCandidateUrl): Indicator[] {
@@ -260,7 +256,7 @@ export function ruleDeceptivePathOrQuery(parsed: ParsedCandidateUrl): Indicator[
 
   if (EXECUTABLE_PATH_REGEX.test(lowerPath)) {
     results.push(
-      makeIndicator(
+      createIndicatorFromRule(
         "LINK_EXECUTABLE_DOWNLOAD",
         `Direct installer/executable path: ${parsed.url.pathname}`,
       ),
@@ -290,13 +286,17 @@ export function ruleDeceptivePathOrQuery(parsed: ParsedCandidateUrl): Indicator[
   }
 
   if (suspiciousFindings.length > 0) {
-    results.push(makeIndicator("LINK_DECEPTIVE_PATH_QUERY", suspiciousFindings.join("; ")));
+    results.push(
+      createIndicatorFromRule("LINK_DECEPTIVE_PATH_QUERY", suspiciousFindings.join("; ")),
+    );
     return results;
   }
 
   const matchedAuth = AUTH_PATH_TOKENS.find((token) => lowerPath.split(/[/_-]+/).includes(token));
   if (matchedAuth) {
-    results.push(makeIndicator("LINK_AUTH_PATH_NOTICE", `Path references "${matchedAuth}"`));
+    results.push(
+      createIndicatorFromRule("LINK_AUTH_PATH_NOTICE", `Path references "${matchedAuth}"`),
+    );
   }
 
   return results;

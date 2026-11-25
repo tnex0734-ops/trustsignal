@@ -78,9 +78,3 @@ export const MESSAGE_FIXTURES: readonly MessageFixture[] = [
     description: "Reward scam demanding gift card payment and APK sideloading.",
   },
 ];
-
-export const UI_MESSAGE_DEMO_PRESETS = MESSAGE_FIXTURES.filter((item) =>
-  ["benign-urgent-deadline", "suspicious-otp-kyc-link", "suspicious-remote-access"].includes(
-    item.id,
-  ),
-);

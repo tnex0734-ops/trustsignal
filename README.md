@@ -143,8 +143,8 @@ See `.env.example`. TrustSignal MVP requires **zero environment variables or API
 
 Full details are recorded in [TEST_RESULTS.md](./TEST_RESULTS.md).
 
-- **Unit & Integration Tests (`npm run test:coverage`):** `12` test files passed, `45 / 45` tests passed (`0` skipped).
-- **V8 Coverage:** `95.12%` statements (`683/718`), `95.14%` lines (`667/701`), `97.20%` functions (`139/143`), `88.27%` branches (`444/503`) (`src/lib/analysis`: `94.85%` statements / `98.57%` functions; `src/features/password-check/service.ts`: `94.66%` statements / `100%` functions).
+- **Unit & Integration Tests (`npm run test:coverage`):** `12` test files passed, `50 / 50` tests passed (`0` skipped).
+- **V8 Coverage:** `98.61%` statements (`712/722`), `98.71%` lines (`694/703`), `100.00%` functions (`149/149`), `94.10%` branches (`447/475`) (`src/lib/analysis`: `97.95%` statements / `100%` functions / `94.80%` branches; `src/features/password-check/service.ts`: `100%` statements / `100%` functions).
 - **End-to-End & Accessibility (`npm run test:e2e`):** `8 / 8` Playwright Chromium specs passed, covering link/message/password journeys, network & storage privacy invariants, XSS inertness, keyboard-only operation, responsive `320px`–`1440px` layouts, security headers, and `axe-core` WCAG 2.2 AA scans (`0` violations on `/` and `/learn`).
 - **Dependency Audit (`npm audit --omit=dev` and `npm audit`):** `0` known vulnerabilities.
 

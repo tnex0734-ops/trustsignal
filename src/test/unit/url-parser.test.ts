@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { MAX_URL_LENGTH } from "@/lib/analysis/constants";
 import { parseCandidateUrl } from "@/lib/analysis/url-parser";
@@ -94,6 +96,57 @@ describe("parseCandidateUrl", () => {
     if (unicodeHost.ok) {
       expect(unicodeHost.isPunycode).toBe(true);
       expect(unicodeHost.rawHadNonAsciiHost).toBe(true);
+    }
+  });
+
+  it("handles hex/octal IP hosts, localhost with port, incomplete schemes, and single-label hosts", () => {
+    const hexIp = parseCandidateUrl("http://0x7f000001/login");
+    expect(hexIp.ok).toBe(true);
+    if (hexIp.ok) {
+      expect(hexIp.isIpAddress).toBe(true);
+    }
+
+    const octalIp = parseCandidateUrl("http://0177.0.0.1/login");
+    expect(octalIp.ok).toBe(true);
+    if (octalIp.ok) {
+      expect(octalIp.isIpAddress).toBe(true);
+    }
+
+    const localhostPort = parseCandidateUrl("localhost:3000/check");
+    expect(localhostPort.ok).toBe(true);
+    if (localhostPort.ok) {
+      expect(localhostPort.assumedScheme).toBe(true);
+      expect(localhostPort.hostname).toBe("localhost");
+    }
+
+    const missingSlashes = parseCandidateUrl("http:example.com/login");
+    expect(missingSlashes.ok).toBe(false);
+    if (!missingSlashes.ok) {
+      expect(missingSlashes.invalidResult.reasonCode).toBe("malformed");
+    }
+
+    const singleLabel = parseCandidateUrl("https://intranet/login");
+    expect(singleLabel.ok).toBe(false);
+    if (!singleLabel.ok) {
+      expect(singleLabel.invalidResult.reasonCode).toBe("malformed");
+    }
+
+    expect(parseCandidateUrl(":8080/bad").ok).toBe(false);
+    expect(parseCandidateUrl(null as unknown as string).ok).toBe(false);
+  });
+
+  it("enforces architectural separation: production source never imports test fixtures", () => {
+    const srcRoot = path.resolve(process.cwd(), "src");
+    const files = fs.readdirSync(srcRoot, { recursive: true }) as string[];
+    for (const relPath of files) {
+      if (relPath.startsWith(`test${path.sep}`) || relPath.startsWith("test/")) {
+        continue;
+      }
+      const fullPath = path.join(srcRoot, relPath);
+      if (fs.statSync(fullPath).isFile() && /\.(ts|tsx)$/.test(relPath)) {
+        const content = fs.readFileSync(fullPath, "utf8");
+        expect(content, relPath).not.toContain("@/test/");
+      }
     }
   });
 });
